@@ -33,7 +33,7 @@ app.config['API_FROM'] = os.environ.get('API_FROM')
 
 # Configurações auxiliares de e-mail e administradores
 app.config['FLASKY_MAIL_SUBJECT_PREFIX'] = '[Flasky]'
-app.config['FLASKY_MAIL_SENDER'] = 'b.hiandra@aluno.ifsp.edu.br'
+app.config['FLASKY_MAIL_SENDER'] = 'flaskaulasweb@zohomail.com'
 app.config['FLASKY_ADMIN'] = os.environ.get('FLASKY_ADMIN')
 
 # Inicialização das extensões do Flask
@@ -78,22 +78,22 @@ class EmailLog(db.Model):
 # Função responsável por disparar o e-mail utilizando a API HTTP do Mailgun
 def send_simple_message(to, subject, html_content, sender_name, body_summary):
     print('Enviando mensagem (POST)...', flush=True)
-    
+
     if isinstance(to, list):
         to_address = ", ".join(to)
     else:
         to_address = to
 
     try:
-        resposta = requests.post(app.config['API_URL'], 
-                               auth=("api", app.config['API_KEY']), 
-                               data={"from": app.config['API_FROM'], 
-                                     "to": to_address, 
-                                     "subject": app.config['FLASKY_MAIL_SUBJECT_PREFIX'] + ' ' + subject, 
+        resposta = requests.post(app.config['API_URL'],
+                               auth=("api", app.config['API_KEY']),
+                               data={"from": app.config['API_FROM'],
+                                     "to": to_address,
+                                     "subject": app.config['FLASKY_MAIL_SUBJECT_PREFIX'] + ' ' + subject,
                                      "html": html_content})
-            
+
         print('Enviando mensagem (Resposta)...' + str(resposta) + ' - ' + datetime.now().strftime("%m/%d/%Y, %H:%M:%S"), flush=True)
-        
+
         # Salva o registo do e-mail enviado no banco de dados (Atv10)
         if resposta.status_code == 200:
             log = EmailLog(
@@ -114,13 +114,13 @@ def send_simple_message(to, subject, html_content, sender_name, body_summary):
 class NameForm(FlaskForm):
     name = StringField('Qual é o seu nome?', validators=[DataRequired()])
     role = SelectField('Qual é o seu cargo?', choices=[
-        ('Usuário', 'Usuário'), 
-        ('Moderador', 'Moderador'), 
+        ('Usuário', 'Usuário'),
+        ('Moderador', 'Moderador'),
         ('Administrador', 'Administrador')
     ])
-    email = BooleanField('Deseja enviar e-mail para b.hiandra@aluno.ifsp.edu.br?')
+    email = BooleanField('Deseja enviar e-mail para flaskaulasweb@zohomail.com?')
     submit = SubmitField('Enviar')
-    
+
 # Contexto de shell para facilitar testes e manipulação via linha de comando
 @app.shell_context_processor
 def make_shell_context():
@@ -146,17 +146,17 @@ def emails_enviados():
 @app.route('/', methods=['GET', 'POST'])
 def index():
     form = NameForm()
-    
+
     if form.validate_on_submit():
         old_name = session.get('name')
         nome = form.name.data
         role_selecionada = form.role.data
-        
+
         if old_name is not None and old_name.lower() != nome.strip().lower():
             session['known'] = False
         else:
             session['known'] = True
-            
+
         session['name'] = nome.strip()
 
         user_role = Role.query.filter_by(name=role_selecionada).first()
@@ -167,7 +167,7 @@ def index():
 
         nome_tratado = nome.strip()
         usuario_existente = User.query.filter(db.func.lower(User.username) == nome_tratado.lower()).first()
-        
+
         is_new_user = False
         is_role_updated = False
 
@@ -188,32 +188,32 @@ def index():
         # Disparo de e-mail condicional apenas se a checkbox estiver marcada e houver admin configurado
         if (is_new_user or is_role_updated) and app.config['FLASKY_ADMIN'] and form.email.data:
             destinatarios = [app.config['FLASKY_ADMIN']]
-            
+
             aluno_email = "b.hiandra@aluno.ifsp.edu.br"
             if aluno_email not in destinatarios:
                 destinatarios.append(aluno_email)
-                
+
             assunto = 'Novo usuário cadastrado' if is_new_user else 'Atualização de cargo de usuário'
             resumo_texto = f'Novo usuário cadastrado: {user.username}' if is_new_user else f'Atualização de cargo: {user.username}'
-            
+
             html_mensagem = render_template('mail/user.html', user=user, is_new=is_new_user)
-            
+
             send_simple_message(destinatarios, assunto, html_mensagem, user.username, resumo_texto)
-            
+
             # Ativa a flag para exibir a mensagem fixa no template
             session['email_enviado'] = True
         else:
             session['email_enviado'] = False
-            
+
         return redirect(url_for('index'))
-        
+
     user_all = User.query.all()
     roles = Role.query.all()
 
-    return render_template('index.html', 
-                           form=form, 
+    return render_template('index.html',
+                           form=form,
                            name=session.get('name'),
-                           known=session.get('known', False), 
+                           known=session.get('known', False),
                            email_enviado=session.get('email_enviado', False),
                            usuarios=user_all,
                            user_count=len(user_all),
